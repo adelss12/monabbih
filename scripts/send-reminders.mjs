@@ -9,7 +9,7 @@ const env = (k) => (process.env[k] || '').trim();
 const SUPABASE_URL = env('SUPABASE_URL').replace(/\/+$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = env('SUPABASE_SERVICE_ROLE_KEY');
 const GMAIL_USER = env('GMAIL_USER');
-const GMAIL_APP_PASSWORD = env('GMAIL_APP_PASSWORD').replace(/\s+/g, '');
+const GMAIL_APP_PASSWORD = env('GMAIL_APP_PASSWORD').replace(/[^a-zA-Z]/g, ''); // كلمة مرور التطبيقات حروف فقط؛ نحذف المسافات والشرطات وعلامات التنصيص
 const TEST_MODE = env('TEST_MODE');
 const TIME_ZONE = env('TIME_ZONE') || 'Asia/Riyadh';
 const APP_URL = env('APP_URL');
