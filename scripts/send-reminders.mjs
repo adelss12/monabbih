@@ -1,0 +1,101 @@
+// يُشغَّل يوميًا عبر GitHub Actions: يفحص تواريخ الانتهاء ويرسل تنبيهًا بالبريد لكل مستخدم
+import { createClient } from '@supabase/supabase-js';
+import nodemailer from 'nodemailer';
+import {
+  todayMs, isoToMs, statusOf, fmtG, fmtH, typeLabel, remainText
+} from '../js/dates.js';
+
+const {
+  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+  GMAIL_USER, GMAIL_APP_PASSWORD,
+  TEST_MODE, TIME_ZONE = 'Asia/Riyadh', APP_URL = ''
+} = process.env;
+
+for (const [k, v] of Object.entries({ SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GMAIL_USER, GMAIL_APP_PASSWORD })) {
+  if (!v) { console.error(`ينقص المتغير السري ${k} في GitHub Secrets`); process.exit(1); }
+}
+
+const test = String(TEST_MODE) === 'true';
+const today = todayMs(TIME_ZONE);
+
+/**
+ * متى نرسل؟ في أيام محددة حتى لا يتكرر البريد يوميًا:
+ * يوم بدء فترة التنبيه، ثم قبل 30 و14 و7 و3 أيام، ثم قبل يوم، ثم يوم الانتهاء، ثم اليوم التالي للانتهاء.
+ * في وضع الاختبار يُرسل كل ما هو داخل فترة التنبيه أو منتهٍ.
+ */
+function shouldNotify(r, lead) {
+  if (test) return r <= lead;
+  if (r === -1) return true;
+  if (r < 0 || r > lead) return false;
+  return r === lead || [30, 14, 7, 3, 1, 0].includes(r);
+}
+
+const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+const { data: items, error } = await sb.from('items').select('*');
+if (error) { console.error('تعذّر قراءة البيانات:', error.message); process.exit(1); }
+
+const byUser = new Map();
+for (const it of items) {
+  const ms = isoToMs(it.expires_on);
+  const { r, st } = statusOf(ms, it.lead_days, today);
+  if (!shouldNotify(r, it.lead_days)) continue;
+  if (!byUser.has(it.user_id)) byUser.set(it.user_id, []);
+  byUser.get(it.user_id).push({ ...it, ms, r, st });
+}
+
+if (byUser.size === 0) {
+  console.log('لا توجد تنبيهات اليوم.');
+  process.exit(0);
+}
+
+const mailer = nodemailer.createTransport({ service: 'gmail', auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD } });
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const COLORS = { expired: ['#FCE8E6', '#9F1D12', 'منتهٍ'], soon: ['#FDF0DC', '#8A4B00', 'قريب الانتهاء'], ok: ['#E3F2EA', '#0B5E3A', 'ساري'] };
+
+let sent = 0;
+for (const [userId, list] of byUser) {
+  const { data: u, error: uErr } = await sb.auth.admin.getUserById(userId);
+  const to = u && u.user && u.user.email;
+  if (uErr || !to) { console.error('لم أجد بريد المستخدم', userId); continue; }
+
+  list.sort((a, b) => a.r - b.r);
+  const subject = list.length === 1
+    ? `منبّه: ${list[0].name} — ${remainText(list[0].r)}`
+    : `منبّه: ${list.length} عناصر تحتاج انتباهك`;
+
+  const rows = list.map((x) => {
+    const [bg, fg, label] = COLORS[x.st];
+    return `<tr>
+  <td style="padding:14px 12px;border-bottom:1px solid #E3DED3">
+    <div style="font-weight:700;font-size:16px" dir="auto">${esc(x.name)}</div>
+    <div style="color:#55606B;font-size:13px">${typeLabel(x.type)}</div>
+  </td>
+  <td style="padding:14px 12px;border-bottom:1px solid #E3DED3;font-size:14px">
+    <div><span style="color:#55606B">ميلادي: </span><b>${fmtG(x.ms)}</b></div>
+    <div><span style="color:#55606B">هجري: </span><b>${fmtH(x.ms)}</b></div>
+  </td>
+  <td style="padding:14px 12px;border-bottom:1px solid #E3DED3;font-size:14px">
+    <span style="display:inline-block;background:${bg};color:${fg};border-radius:999px;padding:2px 10px;font-weight:700;font-size:13px">${label}</span>
+    <div style="font-weight:600;margin-top:4px">${remainText(x.r)}</div>
+  </td>
+</tr>`;
+  }).join('');
+
+  const html = `<!doctype html><html lang="ar" dir="rtl"><body style="margin:0;background:#F4F1EA;font-family:Tahoma,Arial,sans-serif;color:#17212B">
+<div style="max-width:640px;margin:0 auto;padding:24px 16px" dir="rtl">
+  <h1 style="margin:0 0 4px;font-size:24px">منبّه</h1>
+  <p style="margin:0 0 18px;color:#55606B">اليوم: ${fmtG(today)} — ${fmtH(today)}</p>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#fff;border:1px solid #E3DED3;border-radius:14px;border-collapse:separate;text-align:right">
+    ${rows}
+  </table>
+  ${APP_URL ? `<p style="margin:20px 0 0"><a href="${esc(APP_URL)}" style="display:inline-block;background:#0E5A52;color:#fff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:700">فتح منبّه</a></p>` : ''}
+  <p style="margin:20px 0 0;color:#55606B;font-size:12px">وصلك هذا البريد لأنك أضفت هذه العناصر في منبّه مع تنبيه قبل الانتهاء.</p>
+</div></body></html>`;
+
+  const text = list.map((x) => `- ${x.name}: ${remainText(x.r)} | ميلادي ${fmtG(x.ms)} | هجري ${fmtH(x.ms)}`).join('\n');
+
+  await mailer.sendMail({ from: `منبّه <${GMAIL_USER}>`, to, subject, html, text });
+  sent += 1;
+  console.log(`أُرسل تنبيه (${list.length} ${list.length > 10 ? 'عنصرًا' : 'عناصر'}) إلى مستخدم.`);
+}
+console.log(`تم. عدد الرسائل المرسلة: ${sent}`);

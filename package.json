@@ -1,0 +1,14 @@
+{
+  "name": "monabbih",
+  "version": "1.0.0",
+  "private": true,
+  "description": "منبّه: تنبيهات قرب انتهاء الاشتراكات والوثائق",
+  "type": "module",
+  "scripts": {
+    "remind": "node scripts/send-reminders.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.45.4",
+    "nodemailer": "6.9.15"
+  }
+}
