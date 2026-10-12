@@ -5,15 +5,28 @@ import {
   todayMs, isoToMs, statusOf, fmtG, fmtH, typeLabel, remainText
 } from '../js/dates.js';
 
-const {
-  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
-  GMAIL_USER, GMAIL_APP_PASSWORD,
-  TEST_MODE, TIME_ZONE = 'Asia/Riyadh', APP_URL = ''
-} = process.env;
+const env = (k) => (process.env[k] || '').trim();
+const SUPABASE_URL = env('SUPABASE_URL').replace(/\/+$/, '');
+const SUPABASE_SERVICE_ROLE_KEY = env('SUPABASE_SERVICE_ROLE_KEY');
+const GMAIL_USER = env('GMAIL_USER');
+const GMAIL_APP_PASSWORD = env('GMAIL_APP_PASSWORD').replace(/\s+/g, '');
+const TEST_MODE = env('TEST_MODE');
+const TIME_ZONE = env('TIME_ZONE') || 'Asia/Riyadh';
+const APP_URL = env('APP_URL');
+
+/** يُظهر الخطأ بوضوح في صفحة Actions (Annotations) ثم يوقف التشغيل */
+function fail(title, detail) {
+  const clean = (x) => String(x || '').replace(/[\r\n]+/g, ' ');
+  console.log(`::error title=${clean(title)}::${clean(detail)}`);
+  process.exit(1);
+}
 
 for (const [k, v] of Object.entries({ SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GMAIL_USER, GMAIL_APP_PASSWORD })) {
-  if (!v) { console.error(`ينقص المتغير السري ${k} في GitHub Secrets`); process.exit(1); }
+  if (!v) fail('سر ناقص', `ينقص ${k} في Settings > Secrets and variables > Actions (تأكد من كتابة الاسم حرفيًا)`);
 }
+if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(SUPABASE_URL)) fail('SUPABASE_URL غير صحيح', 'يجب أن يكون بالشكل https://xxxx.supabase.co');
+if (SUPABASE_SERVICE_ROLE_KEY.startsWith('sb_publishable_')) fail('مفتاح خاطئ', 'وضعت المفتاح العام publishable في SUPABASE_SERVICE_ROLE_KEY؛ المطلوب المفتاح السري sb_secret_');
+if (GMAIL_APP_PASSWORD.length !== 16) fail('كلمة مرور Gmail', `كلمة مرور التطبيقات يجب أن تكون 16 حرفًا (الموجودة ${GMAIL_APP_PASSWORD.length}). لا تستخدم كلمة مرور حسابك العادية.`);
 
 const test = String(TEST_MODE) === 'true';
 const today = todayMs(TIME_ZONE);
@@ -32,7 +45,7 @@ function shouldNotify(r, lead) {
 
 const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 const { data: items, error } = await sb.from('items').select('*');
-if (error) { console.error('تعذّر قراءة البيانات:', error.message); process.exit(1); }
+if (error) fail('تعذّر قراءة البيانات من Supabase', `${error.message} — تأكد أن SUPABASE_SERVICE_ROLE_KEY هو المفتاح السري sb_secret_ وأنك شغّلت schema.sql`);
 
 const byUser = new Map();
 for (const it of items) {
@@ -56,7 +69,7 @@ let sent = 0;
 for (const [userId, list] of byUser) {
   const { data: u, error: uErr } = await sb.auth.admin.getUserById(userId);
   const to = u && u.user && u.user.email;
-  if (uErr || !to) { console.error('لم أجد بريد المستخدم', userId); continue; }
+  if (uErr || !to) { console.log(`::warning title=بريد المستخدم::${uErr ? uErr.message : 'لا يوجد بريد'}`); continue; }
 
   list.sort((a, b) => a.r - b.r);
   const subject = list.length === 1
@@ -94,7 +107,14 @@ for (const [userId, list] of byUser) {
 
   const text = list.map((x) => `- ${x.name}: ${remainText(x.r)} | ميلادي ${fmtG(x.ms)} | هجري ${fmtH(x.ms)}`).join('\n');
 
-  await mailer.sendMail({ from: `منبّه <${GMAIL_USER}>`, to, subject, html, text });
+  try {
+    await mailer.sendMail({ from: `منبّه <${GMAIL_USER}>`, to, subject, html, text });
+  } catch (e) {
+    if (e && (e.code === 'EAUTH' || /Username and Password not accepted|Application-specific password/i.test(e.message))) {
+      fail('Gmail رفض الدخول', 'تأكد أن GMAIL_USER هو بريدك كاملًا وأن GMAIL_APP_PASSWORD هي كلمة مرور التطبيقات (16 حرفًا) من myaccount.google.com/apppasswords');
+    }
+    fail('تعذّر إرسال البريد', e && e.message);
+  }
   sent += 1;
   console.log(`أُرسل تنبيه (${list.length} ${list.length > 10 ? 'عنصرًا' : 'عناصر'}) إلى مستخدم.`);
 }
