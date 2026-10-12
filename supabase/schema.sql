@@ -15,6 +15,11 @@ create table if not exists public.items (
 
 create index if not exists items_user_idx on public.items (user_id);
 
+-- صلاحيات الوصول عبر واجهة البيانات (للمستخدمين المسجّلين فقط، لا للزوار)
+revoke all on public.items from anon;
+grant select, insert, update, delete on public.items to authenticated;
+grant all on public.items to service_role;
+
 -- كل مستخدم يرى ويعدّل بياناته فقط
 alter table public.items enable row level security;
 
