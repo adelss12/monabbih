@@ -38,7 +38,12 @@
 **Settings ← Pages ← Source: Deploy from a branch ← Branch: `main` / `(root)` ← Save**
 بعد دقيقة يعمل على: `https://adelss12.github.io/monabbih/`
 
-### 4) البريد — كلمة مرور تطبيقات Gmail
+### 4) البريد — Resend (الأسهل، بدون تحقق بخطوتين)
+1. سجّل في <https://resend.com> بنفس البريد الذي تستخدمه في منبّه.
+2. **API Keys ← Create API Key** وانسخ المفتاح (يبدأ بـ `re_`) وضعه في السر `RESEND_API_KEY`.
+> بدون نطاق خاص يرسل Resend فقط إلى البريد المسجّل فيه — مناسب للاستخدام الشخصي.
+
+### 4-ب) بديل: كلمة مرور تطبيقات Gmail
 1. فعّل **التحقق بخطوتين** في حساب Google.
 2. ادخل <https://myaccount.google.com/apppasswords> وأنشئ كلمة مرور باسم `monabbih` (16 حرفًا).
 

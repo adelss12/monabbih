@@ -13,6 +13,9 @@ const GMAIL_APP_PASSWORD = env('GMAIL_APP_PASSWORD').replace(/[^a-zA-Z]/g, ''); 
 const TEST_MODE = env('TEST_MODE');
 const TIME_ZONE = env('TIME_ZONE') || 'Asia/Riyadh';
 const APP_URL = env('APP_URL');
+const RESEND_API_KEY = env('RESEND_API_KEY');
+const MAIL_FROM = env('MAIL_FROM') || 'منبّه <onboarding@resend.dev>';
+const useResend = !!RESEND_API_KEY;
 
 /** يُظهر الخطأ بوضوح في صفحة Actions (Annotations) ثم يوقف التشغيل */
 function fail(title, detail) {
@@ -21,12 +24,17 @@ function fail(title, detail) {
   process.exit(1);
 }
 
-for (const [k, v] of Object.entries({ SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GMAIL_USER, GMAIL_APP_PASSWORD })) {
+const required = useResend
+  ? { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY }
+  : { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY };
+for (const [k, v] of Object.entries(required)) {
   if (!v) fail('سر ناقص', `ينقص ${k} في Settings > Secrets and variables > Actions (تأكد من كتابة الاسم حرفيًا)`);
 }
+if (!useResend && !(GMAIL_USER && GMAIL_APP_PASSWORD)) fail('لا توجد طريقة إرسال', 'أضف السر RESEND_API_KEY (الأسهل)، أو GMAIL_USER و GMAIL_APP_PASSWORD');
+if (useResend && !RESEND_API_KEY.startsWith('re_')) fail('RESEND_API_KEY غير صحيح', 'مفتاح Resend يبدأ بـ re_');
 if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(SUPABASE_URL)) fail('SUPABASE_URL غير صحيح', 'يجب أن يكون بالشكل https://xxxx.supabase.co');
 if (SUPABASE_SERVICE_ROLE_KEY.startsWith('sb_publishable_')) fail('مفتاح خاطئ', 'وضعت المفتاح العام publishable في SUPABASE_SERVICE_ROLE_KEY؛ المطلوب المفتاح السري sb_secret_');
-if (GMAIL_APP_PASSWORD.length !== 16) fail('كلمة مرور Gmail', `كلمة مرور التطبيقات يجب أن تكون 16 حرفًا (الموجودة ${GMAIL_APP_PASSWORD.length}). لا تستخدم كلمة مرور حسابك العادية.`);
+if (!useResend && GMAIL_APP_PASSWORD.length !== 16) fail('كلمة مرور Gmail', `كلمة مرور التطبيقات يجب أن تكون 16 حرفًا (الموجودة ${GMAIL_APP_PASSWORD.length}). لا تستخدم كلمة مرور حسابك العادية.`);
 
 const test = String(TEST_MODE) === 'true';
 const today = todayMs(TIME_ZONE);
@@ -61,7 +69,20 @@ if (byUser.size === 0) {
   process.exit(0);
 }
 
-const mailer = nodemailer.createTransport({ service: 'gmail', auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD } });
+const mailer = useResend ? null : nodemailer.createTransport({ service: 'gmail', auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD } });
+
+async function sendViaResend(msg) {
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: MAIL_FROM, to: [msg.to], subject: msg.subject, html: msg.html, text: msg.text })
+  });
+  if (res.ok) return;
+  const body = await res.text();
+  if (res.status === 401 || res.status === 403 && /api key/i.test(body)) fail('Resend رفض المفتاح', 'تأكد من نسخ RESEND_API_KEY كاملًا (يبدأ بـ re_)');
+  if (res.status === 403) fail('Resend: بريد المستلم غير مسموح', 'بدون نطاق خاص يرسل Resend فقط إلى البريد الذي سجّلت به في Resend. سجّل في منبّه بنفس البريد. ' + body);
+  fail('تعذّر الإرسال عبر Resend', `${res.status} ${body}`);
+}
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const COLORS = { expired: ['#FCE8E6', '#9F1D12', 'منتهٍ'], soon: ['#FDF0DC', '#8A4B00', 'قريب الانتهاء'], ok: ['#E3F2EA', '#0B5E3A', 'ساري'] };
 
@@ -107,6 +128,12 @@ for (const [userId, list] of byUser) {
 
   const text = list.map((x) => `- ${x.name}: ${remainText(x.r)} | ميلادي ${fmtG(x.ms)} | هجري ${fmtH(x.ms)}`).join('\n');
 
+  if (useResend) {
+    await sendViaResend({ to, subject, html, text });
+    sent += 1;
+    console.log(`أُرسل تنبيه (${list.length}) عبر Resend.`);
+    continue;
+  }
   try {
     await mailer.sendMail({ from: `منبّه <${GMAIL_USER}>`, to, subject, html, text });
   } catch (e) {
