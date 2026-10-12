@@ -78,6 +78,11 @@ legend { font-size: 14px; font-weight: 600; padding: 0; margin-bottom: 8px; }
 .btn-primary:disabled { opacity: .6; cursor: progress; }
 .btn-outline { min-height: 46px; border: 1px solid var(--accent); border-radius: 12px; background: var(--surface); color: var(--accent); font-weight: 600; padding: 0 16px; }
 .btn-ghost { min-height: 44px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--muted); padding: 0 14px; }
+.pass-wrap { position: relative; }
+.pass-wrap input { padding-left: 76px; }
+.toggle-pass { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); min-height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: #EFEBE2; color: var(--ink); font-size: 13px; font-weight: 600; }
+.link-btn { align-self: flex-start; min-height: 44px; padding: 0; border: 0; background: none; color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+.link-btn:hover { color: var(--accent-dark); }
 .row-btns { display: flex; flex-wrap: wrap; gap: 10px; }
 .row-btns > * { flex: 1 1 140px; }
 

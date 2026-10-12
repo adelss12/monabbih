@@ -24,7 +24,64 @@ function show(view) {
   $('setup').hidden = view !== 'setup';
   $('auth').hidden = view !== 'auth';
   $('app').hidden = view !== 'app';
+  $('pwd').hidden = view !== 'pwd';
   $('logout').hidden = view !== 'app';
+  $('change-pass').hidden = view !== 'app';
+}
+
+/* ---------- كلمة المرور ---------- */
+const appUrl = () => location.origin + location.pathname;
+
+async function forgotPassword() {
+  const email = $('a-email').value.trim();
+  if (!email) { $('a-email').focus(); return authMsg('اكتب بريدك الإلكتروني أولًا ثم اضغط «نسيت كلمة المرور؟».', true); }
+  authMsg('جارٍ الإرسال…');
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: appUrl() });
+  if (error) return authMsg(translateAuthError(error), true);
+  authMsg('أرسلنا رابط تعيين كلمة مرور جديدة إلى بريدك. افتحه من هذا الجهاز.');
+}
+
+function pwdMsg(text, isError) {
+  const el = $('pwd-msg');
+  el.textContent = text;
+  el.className = 'msg' + (isError ? ' error' : '');
+  el.hidden = !text;
+}
+
+function openPasswordForm() {
+  $('p-new').value = '';
+  $('p-confirm').value = '';
+  pwdMsg('');
+  show('pwd');
+  $('p-new').focus();
+}
+
+async function savePassword(ev) {
+  ev.preventDefault();
+  const p1 = $('p-new').value;
+  const p2 = $('p-confirm').value;
+  if (p1.length < 6) return pwdMsg('كلمة المرور يجب أن تكون 6 أحرف على الأقل.', true);
+  if (p1 !== p2) return pwdMsg('كلمتا المرور غير متطابقتين.', true);
+  pwdMsg('جارٍ الحفظ…');
+  const { error } = await sb.auth.updateUser({ password: p1 });
+  if (error) {
+    if (/different from the old/i.test(error.message)) return pwdMsg('اختر كلمة مرور مختلفة عن السابقة.', true);
+    return pwdMsg(translateAuthError(error), true);
+  }
+  state.recovery = false;
+  if (location.hash) history.replaceState(null, '', appUrl());
+  pwdMsg('');
+  show('app');
+  showToast('تم حفظ كلمة المرور الجديدة.');
+}
+
+function showToast(text) {
+  const el = $('alert');
+  const was = el.hidden;
+  $('alert-title').textContent = text;
+  $('alert-names').textContent = '';
+  el.hidden = false;
+  setTimeout(() => { if (was) el.hidden = true; render(); }, 4000);
 }
 
 /* ---------- تسجيل الدخول ---------- */
@@ -267,6 +324,22 @@ function wire() {
   $('auth-form').addEventListener('submit', signIn);
   $('signup').addEventListener('click', signUp);
   $('logout').addEventListener('click', () => sb.auth.signOut());
+  $('forgot').addEventListener('click', forgotPassword);
+  $('change-pass').addEventListener('click', openPasswordForm);
+  $('pwd-form').addEventListener('submit', savePassword);
+  $('pwd-cancel').addEventListener('click', () => {
+    state.recovery = false;
+    if (location.hash) history.replaceState(null, '', appUrl());
+    show(state.user ? 'app' : 'auth');
+  });
+  document.querySelectorAll('.toggle-pass').forEach((b) => b.addEventListener('click', () => {
+    const inp = $(b.dataset.for);
+    const showIt = inp.type === 'password';
+    inp.type = showIt ? 'text' : 'password';
+    if (b.dataset.for === 'p-new') $('p-confirm').type = inp.type;
+    b.textContent = showIt ? 'إخفاء' : 'إظهار';
+    b.setAttribute('aria-label', showIt ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور');
+  }));
   $('q').addEventListener('input', (e) => { state.q = e.target.value; render(); });
   $('chips').addEventListener('click', (e) => {
     const b = e.target.closest('[data-filter]');
@@ -286,7 +359,7 @@ function wire() {
 function onSession(session) {
   state.user = session ? session.user : null;
   if (state.user) {
-    show('app');
+    if (state.recovery) openPasswordForm(); else show('app');
     $('who').textContent = 'مسجّل الدخول: ' + state.user.email;
     loadItems();
   } else {
@@ -301,9 +374,22 @@ wire();
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   show('setup');
 } else {
+  // رابط «نسيت كلمة المرور» يعود إلى التطبيق ومعه type=recovery
+  state.recovery = /type=recovery/.test(location.hash);
+  const hashErr = new URLSearchParams(location.hash.slice(1)).get('error_code');
+  if (hashErr) {
+    authMsg(hashErr === 'otp_expired' ? 'انتهت صلاحية الرابط أو استُخدم من قبل. اطلب رابطًا جديدًا.' : 'تعذّر فتح الرابط، اطلب رابطًا جديدًا.', true);
+    history.replaceState(null, '', location.origin + location.pathname);
+  }
   sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   sb.auth.getSession().then(({ data }) => onSession(data.session));
-  sb.auth.onAuthStateChange((_ev, session) => {
+  sb.auth.onAuthStateChange((ev, session) => {
+    if (ev === 'PASSWORD_RECOVERY') {
+      state.recovery = true;
+      state.user = session ? session.user : state.user;
+      openPasswordForm();
+      return;
+    }
     const was = state.user && state.user.id;
     const now = session && session.user && session.user.id;
     if (was !== now) onSession(session);

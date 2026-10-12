@@ -31,6 +31,7 @@
         <strong id="today-g"></strong>
         <strong id="today-h" class="accent"></strong>
       </div>
+      <button type="button" id="change-pass" class="btn-ghost" hidden>تغيير كلمة المرور</button>
       <button type="button" id="logout" class="btn-ghost" hidden>تسجيل الخروج</button>
     </div>
   </header>
@@ -52,12 +53,40 @@
       </div>
       <div class="field">
         <label for="a-pass">كلمة المرور</label>
-        <input id="a-pass" type="password" dir="ltr" autocomplete="current-password" minlength="6" required>
+        <div class="pass-wrap">
+          <input id="a-pass" type="password" dir="ltr" autocomplete="current-password" minlength="6" required>
+          <button type="button" class="toggle-pass" data-for="a-pass" aria-label="إظهار كلمة المرور">إظهار</button>
+        </div>
       </div>
+      <button type="button" id="forgot" class="link-btn">نسيت كلمة المرور؟</button>
       <p id="auth-msg" class="msg" hidden></p>
       <div class="row-btns">
         <button type="submit" class="btn-primary" data-mode="in">دخول</button>
         <button type="button" id="signup" class="btn-outline">إنشاء حساب جديد</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- تعيين كلمة مرور جديدة -->
+  <section id="pwd" class="card auth" hidden>
+    <h2>تعيين كلمة مرور جديدة</h2>
+    <p class="muted">اختر كلمة مرور جديدة لحسابك (6 أحرف على الأقل) واحفظها في مكان آمن.</p>
+    <form id="pwd-form" novalidate>
+      <div class="field">
+        <label for="p-new">كلمة المرور الجديدة</label>
+        <div class="pass-wrap">
+          <input id="p-new" type="password" dir="ltr" autocomplete="new-password" minlength="6" required>
+          <button type="button" class="toggle-pass" data-for="p-new" aria-label="إظهار كلمة المرور">إظهار</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="p-confirm">تأكيد كلمة المرور</label>
+        <input id="p-confirm" type="password" dir="ltr" autocomplete="new-password" minlength="6" required>
+      </div>
+      <p id="pwd-msg" class="msg" hidden></p>
+      <div class="row-btns">
+        <button type="submit" class="btn-primary">حفظ كلمة المرور</button>
+        <button type="button" id="pwd-cancel" class="btn-outline">إلغاء</button>
       </div>
     </form>
   </section>
