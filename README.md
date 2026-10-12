@@ -48,7 +48,7 @@
 | الاسم | القيمة |
 |---|---|
 | `SUPABASE_URL` | Project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | service_role key |
+| `SUPABASE_SERVICE_ROLE_KEY` | المفتاح السري: `sb_secret_...` (أو service_role من تبويب Legacy) |
 | `GMAIL_USER` | بريدك في Gmail الذي سيُرسل منه |
 | `GMAIL_APP_PASSWORD` | كلمة مرور التطبيقات (16 حرفًا) |
 
