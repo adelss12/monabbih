@@ -9,7 +9,7 @@ import {
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const state = { items: [], filter: 'all', q: '', cal: 'g', user: null };
+const state = { items: [], filter: 'all', q: '', cal: 'g', user: null, editingId: null };
 let sb = null;
 
 /* ---------- اليوم ---------- */
@@ -76,12 +76,11 @@ async function savePassword(ev) {
 }
 
 function showToast(text) {
-  const el = $('alert');
-  const was = el.hidden;
-  $('alert-title').textContent = text;
-  $('alert-names').textContent = '';
+  const el = $('toast');
+  el.textContent = text;
   el.hidden = false;
-  setTimeout(() => { if (was) el.hidden = true; render(); }, 4000);
+  clearTimeout(showToast.t);
+  showToast.t = setTimeout(() => { el.hidden = true; }, 3500);
 }
 
 /* ---------- تسجيل الدخول ---------- */
@@ -155,15 +154,75 @@ async function addItem(ev) {
     cal: state.cal,
     expires_on: msToIso(r.ms)
   };
-  const { data, error } = await sb.from('items').insert(row).select().single();
+  const editingId = state.editingId;
+  const q = editingId
+    ? sb.from('items').update(row).eq('id', editingId).select().single()
+    : sb.from('items').insert(row).select().single();
+  const { data, error } = await q;
   $('add-btn').disabled = false;
   if (error) return formError('تعذّر الحفظ: ' + error.message);
-  state.items.push(data);
+  if (editingId) {
+    state.items = state.items.map((x) => (x.id === editingId ? data : x));
+    stopEditing();
+    showToast(`تم حفظ التعديل على «${data.name}».`);
+  } else {
+    state.items.push(data);
+    clearForm();
+  }
+  render();
+}
+
+function clearForm() {
   $('f-name').value = '';
   $('f-d').value = '';
   $('f-y').value = '';
   $('f-m').value = '1';
+  formError('');
   updatePreview();
+}
+
+/* ---------- التعديل ---------- */
+function startEditing(id) {
+  const it = state.items.find((x) => x.id === id);
+  if (!it) return;
+  state.editingId = id;
+  // التاريخ يُعرض بالتقويم الذي أُدخل به
+  state.cal = it.cal === 'h' ? 'h' : 'g';
+  fillMonths();
+  const ms = isoToMs(it.expires_on);
+  if (state.cal === 'h') {
+    const h = hijriParts(ms);
+    $('f-d').value = h.d; $('f-m').value = String(h.m); $('f-y').value = h.y;
+  } else {
+    const dt = new Date(ms);
+    $('f-d').value = dt.getUTCDate(); $('f-m').value = String(dt.getUTCMonth() + 1); $('f-y').value = dt.getUTCFullYear();
+  }
+  $('f-name').value = it.name;
+  $('f-type').value = it.type;
+  $('f-cycle').value = it.cycle;
+  const lead = String(it.lead_days);
+  if (![...$('f-lead').options].some((o) => o.value === lead)) {
+    $('f-lead').insertAdjacentHTML('beforeend', `<option value="${lead}">${dayWord(it.lead_days)}</option>`);
+  }
+  $('f-lead').value = lead;
+  formError('');
+  updatePreview();
+  $('form-title').textContent = 'تعديل: ' + it.name;
+  $('add-btn').textContent = 'حفظ التعديل';
+  $('edit-cancel').hidden = false;
+  $('form-card').classList.add('editing');
+  render();
+  $('form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('f-name').focus({ preventScroll: true });
+}
+
+function stopEditing() {
+  state.editingId = null;
+  $('form-title').textContent = 'إضافة اشتراك أو وثيقة';
+  $('add-btn').textContent = 'إضافة';
+  $('edit-cancel').hidden = true;
+  $('form-card').classList.remove('editing');
+  clearForm();
   render();
 }
 
@@ -185,6 +244,7 @@ async function removeItem(id) {
   const { error } = await sb.from('items').delete().eq('id', id);
   if (error) return alert('تعذّر الحذف: ' + error.message);
   state.items = state.items.filter((x) => x.id !== id);
+  if (state.editingId === id) stopEditing();
   render();
 }
 
@@ -225,7 +285,7 @@ function render() {
     const initial = esc((x.name.trim().charAt(0) || '؟').toUpperCase());
     const name = esc(x.name);
     return `
-<article class="item">
+<article class="item${x.id === state.editingId ? ' is-editing' : ''}">
   <div class="mono${x.type === 'sub' ? ' sub' : ''}" aria-hidden="true">${initial}</div>
   <div class="info">
     <h3 dir="auto">${name}</h3>
@@ -241,6 +301,7 @@ function render() {
   </div>
   <div class="actions">
     ${x.cycle !== 'none' ? `<button type="button" class="renew" data-renew="${x.id}" aria-label="تجديد ${name}">تجديد</button>` : ''}
+    <button type="button" class="edit" data-edit="${x.id}" aria-label="تعديل ${name}">تعديل</button>
     <button type="button" class="del" data-del="${x.id}" aria-label="حذف ${name}">حذف</button>
   </div>
 </article>`;
@@ -321,6 +382,7 @@ function wire() {
   ['f-d', 'f-m', 'f-y'].forEach((id) => $(id).addEventListener('input', () => { updatePreview(); formError(''); }));
   $('f-type').addEventListener('change', () => { if ($('f-type').value !== 'sub' && $('f-cycle').value === 'monthly') $('f-cycle').value = 'none'; });
   $('add-form').addEventListener('submit', addItem);
+  $('edit-cancel').addEventListener('click', stopEditing);
   $('auth-form').addEventListener('submit', signIn);
   $('signup').addEventListener('click', signUp);
   $('logout').addEventListener('click', () => sb.auth.signOut());
@@ -351,6 +413,8 @@ function wire() {
   $('list').addEventListener('click', (e) => {
     const r = e.target.closest('[data-renew]');
     if (r) return renewItem(r.dataset.renew);
+    const ed = e.target.closest('[data-edit]');
+    if (ed) return startEditing(ed.dataset.edit);
     const d = e.target.closest('[data-del]');
     if (d) return removeItem(d.dataset.del);
   });

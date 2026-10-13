@@ -136,3 +136,14 @@ legend { font-size: 14px; font-weight: 600; padding: 0; margin-bottom: 8px; }
   .actions { flex: 1 1 100%; }
   .actions button { flex: 1; }
 }
+
+/* التعديل */
+.actions .edit { border: 1px solid var(--field-line); color: var(--ink); font-weight: 600; }
+.item.is-editing { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+.form-card.editing { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+.form-card { scroll-margin-top: 16px; }
+.form-actions { display: flex; gap: 10px; }
+.form-actions .btn-primary { flex: 2; }
+.form-actions .btn-outline { flex: 1; }
+.btn-outline.big { min-height: 52px; font-size: 17px; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 20px; border-radius: 12px; font-weight: 600; box-shadow: 0 6px 20px rgba(23,33,43,.25); z-index: 10; max-width: calc(100% - 32px); text-align: center; }
