@@ -184,6 +184,87 @@ function clearForm() {
   updatePreview();
 }
 
+/* ---------- النسخة الاحتياطية ---------- */
+const BACKUP_FIELDS = ['name', 'type', 'cycle', 'lead_days', 'cal', 'expires_on', 'notes'];
+
+function exportBackup() {
+  const items = [...state.items]
+    .sort((a, b) => String(a.expires_on).localeCompare(String(b.expires_on)))
+    .map((x) => {
+      const ms = isoToMs(x.expires_on);
+      const o = {};
+      BACKUP_FIELDS.forEach((k) => { o[k] = x[k] ?? null; });
+      // للقراءة فقط — لا تُستخدم عند الاستيراد
+      o.expires_gregorian = fmtG(ms);
+      o.expires_hijri = fmtH(ms);
+      o.type_label = typeLabel(x.type);
+      o.created_at = x.created_at || null;
+      return o;
+    });
+  const data = {
+    app: 'monabbih',
+    version: 1,
+    exported_at: new Date().toISOString(),
+    account: state.user ? state.user.email : null,
+    count: items.length,
+    items
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `monabbih-backup-${msToIso(todayMs())}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  showToast(`تم تصدير ${items.length} عنصر.`);
+}
+
+function cleanImported(x) {
+  if (!x || typeof x !== 'object') return null;
+  const name = String(x.name || '').trim().slice(0, 120);
+  const iso = String(x.expires_on || '').slice(0, 10);
+  if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const types = TYPES.map((t) => t.v);
+  const lead = parseInt(x.lead_days, 10);
+  const notes = x.notes ? String(x.notes).slice(0, 500) : null;
+  return {
+    name,
+    type: types.includes(x.type) ? x.type : 'other',
+    cycle: ['monthly', 'yearly', 'none'].includes(x.cycle) ? x.cycle : 'none',
+    lead_days: Number.isFinite(lead) && lead >= 0 && lead <= 365 ? lead : 7,
+    cal: x.cal === 'h' ? 'h' : 'g',
+    expires_on: iso,
+    notes
+  };
+}
+
+async function importBackup(file) {
+  if (!file) return;
+  let parsed;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch (e) {
+    return alert('الملف غير صالح. اختر ملف النسخة الاحتياطية بصيغة JSON.');
+  }
+  const list = Array.isArray(parsed) ? parsed : parsed && parsed.items;
+  if (!Array.isArray(list)) return alert('لم أجد بيانات في هذا الملف.');
+  const rows = list.map(cleanImported).filter(Boolean);
+  const key = (x) => `${x.name.toLowerCase()}|${x.expires_on}`;
+  const existing = new Set(state.items.map(key));
+  const fresh = rows.filter((x) => !existing.has(key(x)));
+  const skipped = rows.length - fresh.length;
+  if (!fresh.length) return alert(`لا يوجد ما يُضاف: كل العناصر (${rows.length}) موجودة مسبقًا.`);
+  const msg = `سيُضاف ${fresh.length} عنصر من الملف.` + (skipped ? `\nوسيُتجاهل ${skipped} لأنها موجودة مسبقًا.` : '') + '\n\nمتابعة؟';
+  if (!confirm(msg)) return;
+  const { data, error } = await sb.from('items').insert(fresh).select();
+  if (error) return alert('تعذّر الاستيراد: ' + error.message);
+  state.items = state.items.concat(data || []);
+  render();
+  showToast(`تم استيراد ${(data || []).length} عنصر.`);
+}
+
 /* ---------- التعديل ---------- */
 function startEditing(id) {
   const it = state.items.find((x) => x.id === id);
@@ -409,6 +490,9 @@ function wire() {
   ['f-d', 'f-m', 'f-y'].forEach((id) => $(id).addEventListener('change', () => { updatePreview(); formError(''); }));
   $('f-type').addEventListener('change', () => { if ($('f-type').value !== 'sub' && $('f-cycle').value === 'monthly') $('f-cycle').value = 'none'; });
   $('add-form').addEventListener('submit', addItem);
+  $('export-btn').addEventListener('click', exportBackup);
+  $('import-btn').addEventListener('click', () => $('import-file').click());
+  $('import-file').addEventListener('change', (e) => { importBackup(e.target.files[0]); e.target.value = ''; });
   $('edit-cancel').addEventListener('click', stopEditing);
   $('auth-form').addEventListener('submit', signIn);
   $('signup').addEventListener('click', signUp);

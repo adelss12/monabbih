@@ -160,3 +160,10 @@ legend { font-size: 14px; font-weight: 600; padding: 0; margin-bottom: 8px; }
 .form-actions .btn-outline { flex: 1; }
 .btn-outline.big { min-height: 52px; font-size: 17px; }
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 20px; border-radius: 12px; font-weight: 600; box-shadow: 0 6px 20px rgba(23,33,43,.25); z-index: 10; max-width: calc(100% - 32px); text-align: center; }
+
+/* النسخة الاحتياطية */
+.backup { margin-top: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.backup h2 { font-size: 17px; font-weight: 700; }
+.backup-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.backup-btns button { min-height: 44px; font-size: 14px; }
+@media (max-width: 560px) { .backup-btns { width: 100%; } .backup-btns button { flex: 1; } }

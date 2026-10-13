@@ -203,6 +203,18 @@
         <div id="list" class="list" aria-live="polite"></div>
         <div id="empty" class="empty" hidden>لا توجد عناصر مطابقة</div>
         <div id="loading" class="empty">جارٍ التحميل…</div>
+
+        <section class="backup" aria-labelledby="backup-title">
+          <div>
+            <h2 id="backup-title">النسخة الاحتياطية</h2>
+            <p class="muted small">احفظ كل بياناتك في ملف JSON على جهازك، واسترجعها متى شئت.</p>
+          </div>
+          <div class="backup-btns">
+            <button type="button" id="export-btn" class="btn-outline">تصدير نسخة احتياطية</button>
+            <button type="button" id="import-btn" class="btn-ghost">استيراد من ملف</button>
+            <input type="file" id="import-file" accept="application/json,.json" hidden>
+          </div>
+        </section>
       </main>
     </div>
   </section>
