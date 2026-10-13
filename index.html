@@ -134,6 +134,10 @@
               </select>
             </div>
           </div>
+          <div class="field">
+            <label for="f-price" id="f-price-label">قيمة الاشتراك الشهري <span class="muted small">(ريال، اختياري)</span></label>
+            <input id="f-price" type="text" inputmode="decimal" dir="ltr" maxlength="10" placeholder="مثال: 45" autocomplete="off">
+          </div>
           <fieldset>
             <legend>تاريخ الانتهاء</legend>
             <div class="seg">
@@ -179,6 +183,13 @@
       </aside>
 
       <main class="main">
+        <div id="totals" class="totals" hidden>
+          <span class="muted">تكلفة اشتراكاتك:</span>
+          <strong id="t-month"></strong>
+          <span class="sep" aria-hidden="true">|</span>
+          <strong id="t-year"></strong>
+          <span class="muted small" id="t-note"></span>
+        </div>
         <div class="tiles">
           <div class="tile"><span class="muted small">منتهية</span><span class="num c-exp" id="c-exp">0</span></div>
           <div class="tile"><span class="muted small">قريبة الانتهاء</span><span class="num c-soon" id="c-soon">0</span></div>

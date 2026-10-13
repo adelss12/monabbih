@@ -11,6 +11,7 @@ create table if not exists public.items (
   cal         text not null default 'g' check (cal in ('g','h')),
   expires_on  date not null,
   notes       text check (notes is null or char_length(notes) <= 500),
+  price       numeric(10,2) check (price is null or price >= 0),
   created_at  timestamptz not null default now()
 );
 
@@ -36,3 +37,6 @@ create policy "items_delete_own" on public.items for delete using (auth.uid() = 
 
 -- ترقية: إضافة حقل الملاحظات لجدول موجود مسبقًا
 alter table public.items add column if not exists notes text check (notes is null or char_length(notes) <= 500);
+
+-- ترقية: إضافة حقل القيمة (ريال) لجدول موجود مسبقًا
+alter table public.items add column if not exists price numeric(10,2) check (price is null or price >= 0);

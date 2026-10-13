@@ -153,8 +153,10 @@ async function addItem(ev) {
     lead_days: parseInt($('f-lead').value, 10) || 7,
     cal: state.cal,
     expires_on: msToIso(r.ms),
-    notes: $('f-notes').value.trim() || null
+    notes: $('f-notes').value.trim() || null,
+    price: parsePrice($('f-price').value)
   };
+  if (Number.isNaN(row.price)) { $('add-btn').disabled = false; return formError('القيمة غير صحيحة. اكتب رقمًا فقط، مثل 45 أو 19.99'); }
   const editingId = state.editingId;
   const q = editingId
     ? sb.from('items').update(row).eq('id', editingId).select().single()
@@ -163,6 +165,7 @@ async function addItem(ev) {
   $('add-btn').disabled = false;
   if (error) {
     if (/notes/i.test(error.message)) return formError('حقل الملاحظات غير مفعّل في قاعدة البيانات بعد. شغّل أمر SQL الخاص بالملاحظات في Supabase ثم أعد المحاولة.');
+    if (/price/i.test(error.message)) return formError('حقل القيمة غير مفعّل في قاعدة البيانات بعد. شغّل أمر SQL الخاص بالقيمة في Supabase ثم أعد المحاولة.');
     return formError('تعذّر الحفظ: ' + error.message);
   }
   if (editingId) {
@@ -179,13 +182,36 @@ async function addItem(ev) {
 function clearForm() {
   $('f-name').value = '';
   $('f-notes').value = '';
+  $('f-price').value = '';
   ['f-d', 'f-m', 'f-y'].forEach((id) => { $(id).value = ''; });
   formError('');
   updatePreview();
 }
 
 /* ---------- النسخة الاحتياطية ---------- */
-const BACKUP_FIELDS = ['name', 'type', 'cycle', 'lead_days', 'cal', 'expires_on', 'notes'];
+const BACKUP_FIELDS = ['name', 'type', 'cycle', 'lead_days', 'cal', 'expires_on', 'notes', 'price'];
+
+/* ---------- القيمة ---------- */
+/** يقبل الأرقام العربية والإنجليزية؛ يُرجع null إن كان فارغًا، و NaN إن كان غير صالح */
+function parsePrice(v) {
+  let t = String(v || '').trim()
+    .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+    .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+    .replace(/[٫,]/g, '.')
+    .replace(/\s|ريال|ر\.س|sar/gi, '');
+  if (!t) return null;
+  if (!/^\d{1,7}(\.\d{1,2})?$/.test(t)) return NaN;
+  return Math.round(parseFloat(t) * 100) / 100;
+}
+
+const money = (n) => `${Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 })} ريال`;
+const CYCLE_PER = { monthly: 'شهريًا', yearly: 'سنويًا', none: '' };
+
+function updatePriceLabel() {
+  const c = $('f-cycle').value;
+  const what = c === 'monthly' ? 'قيمة الاشتراك الشهري' : c === 'yearly' ? 'قيمة الاشتراك السنوي' : 'رسوم التجديد';
+  $('f-price-label').innerHTML = `${what} <span class="muted small">(ريال، اختياري)</span>`;
+}
 
 function exportBackup() {
   const items = [...state.items]
@@ -229,6 +255,7 @@ function cleanImported(x) {
   const types = TYPES.map((t) => t.v);
   const lead = parseInt(x.lead_days, 10);
   const notes = x.notes ? String(x.notes).slice(0, 500) : null;
+  const price = x.price == null || x.price === '' ? null : parsePrice(x.price);
   return {
     name,
     type: types.includes(x.type) ? x.type : 'other',
@@ -236,7 +263,8 @@ function cleanImported(x) {
     lead_days: Number.isFinite(lead) && lead >= 0 && lead <= 365 ? lead : 7,
     cal: x.cal === 'h' ? 'h' : 'g',
     expires_on: iso,
-    notes
+    notes,
+    price: Number.isNaN(price) ? null : price
   };
 }
 
@@ -277,8 +305,10 @@ function startEditing(id) {
   setDateFromMs(isoToMs(it.expires_on));
   $('f-name').value = it.name;
   $('f-notes').value = it.notes || '';
+  $('f-price').value = it.price != null ? String(+it.price) : '';
   $('f-type').value = it.type;
   $('f-cycle').value = it.cycle;
+  updatePriceLabel();
   const lead = String(it.lead_days);
   if (![...$('f-lead').options].some((o) => o.value === lead)) {
     $('f-lead').insertAdjacentHTML('beforeend', `<option value="${lead}">${dayWord(it.lead_days)}</option>`);
@@ -340,6 +370,17 @@ function render() {
   $('c-ok').textContent = all.filter((x) => x.st === 'ok').length;
   $('c-all').textContent = all.length;
 
+  // إجمالي تكلفة الاشتراكات المتجددة (الشهري + السنوي/12)
+  const priced = all.filter((x) => x.price != null && x.cycle !== 'none');
+  const perMonth = priced.reduce((sum, x) => sum + (x.cycle === 'monthly' ? +x.price : +x.price / 12), 0);
+  $('totals').hidden = priced.length === 0;
+  if (priced.length) {
+    $('t-month').textContent = `${money(Math.round(perMonth * 100) / 100)} شهريًا`;
+    $('t-year').textContent = `${money(Math.round(perMonth * 12 * 100) / 100)} سنويًا`;
+    const missing = all.filter((x) => x.price == null && x.cycle !== 'none').length;
+    $('t-note').textContent = missing ? `(${missing} بدون قيمة)` : '';
+  }
+
   const alerting = all.filter((x) => x.st !== 'ok');
   $('alert').hidden = alerting.length === 0;
   if (alerting.length) {
@@ -369,6 +410,7 @@ function render() {
   <div class="info">
     <h3 dir="auto">${name}</h3>
     <span class="muted">${typeLabel(x.type)} · ${CYCLE_LABELS[x.cycle] || ''} · تنبيه قبل ${dayWord(x.lead_days, true)}</span>
+    ${x.price != null ? `<span class="price">${money(x.price)}${CYCLE_PER[x.cycle] ? ' ' + CYCLE_PER[x.cycle] : ''}</span>` : ''}
     ${x.notes ? `<p class="note" dir="auto">${esc(x.notes)}</p>` : ''}
   </div>
   <div class="dates">
@@ -488,7 +530,9 @@ function wire() {
   $('cal-g').addEventListener('click', () => switchCal('g'));
   $('cal-h').addEventListener('click', () => switchCal('h'));
   ['f-d', 'f-m', 'f-y'].forEach((id) => $(id).addEventListener('change', () => { updatePreview(); formError(''); }));
-  $('f-type').addEventListener('change', () => { if ($('f-type').value !== 'sub' && $('f-cycle').value === 'monthly') $('f-cycle').value = 'none'; });
+  $('f-type').addEventListener('change', () => { if ($('f-type').value !== 'sub' && $('f-cycle').value === 'monthly') $('f-cycle').value = 'none'; updatePriceLabel(); });
+  $('f-cycle').addEventListener('change', updatePriceLabel);
+  $('f-price').addEventListener('input', () => formError(''));
   $('add-form').addEventListener('submit', addItem);
   $('export-btn').addEventListener('click', exportBackup);
   $('import-btn').addEventListener('click', () => $('import-file').click());
