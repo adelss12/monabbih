@@ -188,6 +188,38 @@ function clearForm() {
   updatePreview();
 }
 
+/* ---------- نافذة التنبيه الخاصة بالتطبيق (بدل نوافذ المتصفح) ---------- */
+function appDialog(message, { title = '', ok = 'حسنًا', cancel = null, tone = '' } = {}) {
+  return new Promise((resolve) => {
+    const dlg = $('app-dialog');
+    $('dlg-title').textContent = title;
+    $('dlg-title').hidden = !title;
+    $('dlg-msg').textContent = message;
+    const okBtn = $('dlg-ok');
+    const cancelBtn = $('dlg-cancel');
+    okBtn.textContent = ok;
+    okBtn.className = tone === 'danger' && cancel ? 'btn-danger' : 'btn-primary';
+    cancelBtn.hidden = !cancel;
+    if (cancel) cancelBtn.textContent = cancel;
+    dlg.classList.toggle('danger', tone === 'danger');
+    const prevFocus = document.activeElement;
+    const done = (v) => {
+      okBtn.onclick = cancelBtn.onclick = dlg.oncancel = dlg.onclick = null;
+      dlg.close();
+      if (prevFocus && prevFocus.focus) prevFocus.focus({ preventScroll: true });
+      resolve(v);
+    };
+    okBtn.onclick = () => done(true);
+    cancelBtn.onclick = () => done(false);
+    dlg.oncancel = (e) => { e.preventDefault(); done(false); }; // زر Esc
+    dlg.onclick = (e) => { if (e.target === dlg) done(false); }; // الضغط خارج النافذة
+    dlg.showModal();
+    (cancel ? cancelBtn : okBtn).focus();
+  });
+}
+const appAlert = (message, opts = {}) => appDialog(message, { ...opts, cancel: null });
+const appConfirm = (message, opts = {}) => appDialog(message, { cancel: 'إلغاء', ...opts });
+
 /* ---------- النسخة الاحتياطية ---------- */
 const BACKUP_FIELDS = ['name', 'type', 'cycle', 'lead_days', 'cal', 'expires_on', 'notes', 'price'];
 
@@ -279,20 +311,20 @@ async function importBackup(file) {
   try {
     parsed = JSON.parse(await file.text());
   } catch (e) {
-    return alert('الملف غير صالح. اختر ملف النسخة الاحتياطية بصيغة JSON.');
+    return appAlert('الملف غير صالح. اختر ملف النسخة الاحتياطية بصيغة JSON.', { title: 'تعذّر الاستيراد', tone: 'danger' });
   }
   const list = Array.isArray(parsed) ? parsed : parsed && parsed.items;
-  if (!Array.isArray(list)) return alert('لم أجد بيانات في هذا الملف.');
+  if (!Array.isArray(list)) return appAlert('لم أجد بيانات في هذا الملف.', { title: 'تعذّر الاستيراد', tone: 'danger' });
   const rows = list.map(cleanImported).filter(Boolean);
   const key = (x) => `${x.name.toLowerCase()}|${x.expires_on}`;
   const existing = new Set(state.items.map(key));
   const fresh = rows.filter((x) => !existing.has(key(x)));
   const skipped = rows.length - fresh.length;
-  if (!fresh.length) return alert(`لا يوجد ما يُضاف: كل العناصر (${rows.length}) موجودة مسبقًا.`);
-  const msg = `سيُضاف ${fresh.length} عنصر من الملف.` + (skipped ? `\nوسيُتجاهل ${skipped} لأنها موجودة مسبقًا.` : '') + '\n\nمتابعة؟';
-  if (!confirm(msg)) return;
+  if (!fresh.length) return appAlert(`كل العناصر في الملف (${rows.length}) موجودة مسبقًا، فلا يوجد ما يُضاف.`, { title: 'لا جديد في الملف' });
+  const msg = `سيُضاف ${fresh.length} عنصر من الملف.` + (skipped ? `\nوسيُتجاهل ${skipped} لأنها موجودة مسبقًا.` : '');
+  if (!(await appConfirm(msg, { title: 'استيراد النسخة الاحتياطية', ok: 'استيراد' }))) return;
   const { data, error } = await sb.from('items').insert(fresh).select();
-  if (error) return alert('تعذّر الاستيراد: ' + error.message);
+  if (error) return appAlert(error.message, { title: 'تعذّر الاستيراد', tone: 'danger' });
   state.items = state.items.concat(data || []);
   render();
   showToast(`تم استيراد ${(data || []).length} عنصر.`);
@@ -347,16 +379,18 @@ async function renewItem(id) {
   const exp = isoToMs(it.expires_on);
   const next = msToIso(addCycle(exp < t ? t : exp, it.cycle, it.cal));
   const { error } = await sb.from('items').update({ expires_on: next }).eq('id', id);
-  if (error) return alert('تعذّر التجديد: ' + error.message);
+  if (error) return appAlert(error.message, { title: 'تعذّر التجديد', tone: 'danger' });
   it.expires_on = next;
   render();
 }
 
 async function removeItem(id) {
   const it = state.items.find((x) => x.id === id);
-  if (!it || !confirm(`حذف «${it.name}»؟`)) return;
+  if (!it) return;
+  const ok = await appConfirm(`سيُحذف «${it.name}» نهائيًا، ولا يمكن التراجع عن ذلك.`, { title: 'حذف العنصر؟', ok: 'حذف', tone: 'danger' });
+  if (!ok) return;
   const { error } = await sb.from('items').delete().eq('id', id);
-  if (error) return alert('تعذّر الحذف: ' + error.message);
+  if (error) return appAlert(error.message, { title: 'تعذّر الحذف', tone: 'danger' });
   state.items = state.items.filter((x) => x.id !== id);
   if (state.editingId === id) stopEditing();
   render();

@@ -232,6 +232,17 @@
 
   <footer class="foot muted small" id="who"></footer>
   <div id="toast" class="toast" role="status" hidden></div>
+
+  <dialog id="app-dialog" class="app-dialog" aria-labelledby="dlg-title" aria-describedby="dlg-msg">
+    <div class="dlg-body">
+      <h2 id="dlg-title"></h2>
+      <p id="dlg-msg"></p>
+    </div>
+    <div class="dlg-actions">
+      <button type="button" id="dlg-ok" class="btn-primary">حسنًا</button>
+      <button type="button" id="dlg-cancel" class="btn-outline">إلغاء</button>
+    </div>
+  </dialog>
 </div>
 
 <script type="module" src="js/app.js"></script>
