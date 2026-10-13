@@ -231,6 +231,7 @@ function exportBackup() {
     app: 'monabbih',
     version: 1,
     exported_at: new Date().toISOString(),
+    exported_at_local: new Date().toLocaleString('en-GB', { hour12: false }),
     account: state.user ? state.user.email : null,
     count: items.length,
     items
@@ -239,7 +240,11 @@ function exportBackup() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `monabbih-backup-${msToIso(todayMs())}.json`;
+  // اسم الملف بالتاريخ والوقت المحلي حتى لا تتكرر الأسماء عند أكثر من نسخة في اليوم
+  const n = new Date();
+  const pad = (v) => String(v).padStart(2, '0');
+  const stamp = `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}_${pad(n.getHours())}-${pad(n.getMinutes())}-${pad(n.getSeconds())}`;
+  a.download = `monabbih-backup-${stamp}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
