@@ -174,9 +174,7 @@ async function addItem(ev) {
 
 function clearForm() {
   $('f-name').value = '';
-  $('f-d').value = '';
-  $('f-y').value = '';
-  $('f-m').value = '1';
+  ['f-d', 'f-m', 'f-y'].forEach((id) => { $(id).value = ''; });
   formError('');
   updatePreview();
 }
@@ -188,15 +186,9 @@ function startEditing(id) {
   state.editingId = id;
   // التاريخ يُعرض بالتقويم الذي أُدخل به
   state.cal = it.cal === 'h' ? 'h' : 'g';
-  fillMonths();
-  const ms = isoToMs(it.expires_on);
-  if (state.cal === 'h') {
-    const h = hijriParts(ms);
-    $('f-d').value = h.d; $('f-m').value = String(h.m); $('f-y').value = h.y;
-  } else {
-    const dt = new Date(ms);
-    $('f-d').value = dt.getUTCDate(); $('f-m').value = String(dt.getUTCMonth() + 1); $('f-y').value = dt.getUTCFullYear();
-  }
+  ['f-d', 'f-m', 'f-y'].forEach((id) => { $(id).value = ''; });
+  fillDateSelects();
+  setDateFromMs(isoToMs(it.expires_on));
   $('f-name').value = it.name;
   $('f-type').value = it.type;
   $('f-cycle').value = it.cycle;
@@ -309,15 +301,52 @@ function render() {
 }
 
 /* ---------- النموذج والتاريخ ---------- */
-function fillMonths() {
-  const names = state.cal === 'h' ? HIJRI_MONTHS : GREG_MONTHS;
-  const cur = $('f-m').value || '1';
-  $('f-m').innerHTML = names.map((n, i) => `<option value="${i + 1}">${n} (${i + 1})</option>`).join('');
-  $('f-m').value = cur;
+/** يملأ قوائم اليوم والشهر والسنة حسب التقويم المختار، مع الإبقاء على الاختيار الحالي */
+function fillDateSelects() {
+  const isH = state.cal === 'h';
+  const keep = { d: $('f-d').value, m: $('f-m').value, y: $('f-y').value };
+  const opt = (v, t) => `<option value="${v}">${t}</option>`;
+  const blank = opt('', 'اختر');
+
+  const days = isH ? 30 : 31;
+  $('f-d').innerHTML = blank + Array.from({ length: days }, (_, i) => opt(i + 1, i + 1)).join('');
+
+  const names = isH ? HIJRI_MONTHS : GREG_MONTHS;
+  $('f-m').innerHTML = blank + names.map((n, i) => opt(i + 1, `${n} (${i + 1})`)).join('');
+
   const t = todayMs();
-  $('f-y').placeholder = state.cal === 'h' ? String(hijriParts(t).y) : String(new Date(t).getUTCFullYear());
-  $('cal-g').setAttribute('aria-pressed', String(state.cal === 'g'));
-  $('cal-h').setAttribute('aria-pressed', String(state.cal === 'h'));
+  const cur = isH ? hijriParts(t).y : new Date(t).getUTCFullYear();
+  const years = [];
+  for (let y = cur - 2; y <= cur + 15; y++) years.push(y);
+  $('f-y').innerHTML = blank + years.map((y) => opt(y, isH ? `${y}هـ` : y)).join('');
+
+  setSel('f-d', keep.d); setSel('f-m', keep.m); setSel('f-y', keep.y);
+  $('cal-g').setAttribute('aria-pressed', String(!isH));
+  $('cal-h').setAttribute('aria-pressed', String(isH));
+}
+
+/** يختار قيمة في القائمة، ويضيفها إن لم تكن موجودة (مثل سنة قديمة عند التعديل) */
+function setSel(id, v) {
+  const el = $(id);
+  v = v === undefined || v === null ? '' : String(v);
+  if (v && ![...el.options].some((o) => o.value === v)) {
+    const o = new Option(id === 'f-y' && state.cal === 'h' ? `${v}هـ` : v, v);
+    if (id === 'f-y') {
+      const after = [...el.options].find((x) => x.value && +x.value > +v);
+      el.insertBefore(o, after || null);
+    } else el.add(o);
+  }
+  el.value = v;
+}
+
+function setDateFromMs(ms) {
+  if (state.cal === 'h') {
+    const h = hijriParts(ms);
+    setSel('f-d', h.d); setSel('f-m', h.m); setSel('f-y', h.y);
+  } else {
+    const dt = new Date(ms);
+    setSel('f-d', dt.getUTCDate()); setSel('f-m', dt.getUTCMonth() + 1); setSel('f-y', dt.getUTCFullYear());
+  }
 }
 
 function formDate() {
@@ -353,18 +382,9 @@ function switchCal(cal) {
   if (state.cal === cal) return;
   const cur = formDate();
   state.cal = cal;
-  if (cur.ms !== null) {
-    if (cal === 'h') {
-      const h = hijriParts(cur.ms);
-      $('f-d').value = h.d; $('f-m').value = String(h.m); $('f-y').value = h.y;
-    } else {
-      const dt = new Date(cur.ms);
-      $('f-d').value = dt.getUTCDate(); $('f-m').value = String(dt.getUTCMonth() + 1); $('f-y').value = dt.getUTCFullYear();
-    }
-  } else {
-    $('f-y').value = '';
-  }
-  fillMonths();
+  ['f-d', 'f-m', 'f-y'].forEach((id) => { $(id).value = ''; });
+  fillDateSelects();
+  if (cur.ms !== null) setDateFromMs(cur.ms);
   updatePreview();
 }
 
@@ -376,10 +396,10 @@ function formError(text) {
 /* ---------- التشغيل ---------- */
 function wire() {
   $('f-type').innerHTML = TYPES.map((x) => `<option value="${x.v}">${x.t}</option>`).join('');
-  fillMonths();
+  fillDateSelects();
   $('cal-g').addEventListener('click', () => switchCal('g'));
   $('cal-h').addEventListener('click', () => switchCal('h'));
-  ['f-d', 'f-m', 'f-y'].forEach((id) => $(id).addEventListener('input', () => { updatePreview(); formError(''); }));
+  ['f-d', 'f-m', 'f-y'].forEach((id) => $(id).addEventListener('change', () => { updatePreview(); formError(''); }));
   $('f-type').addEventListener('change', () => { if ($('f-type').value !== 'sub' && $('f-cycle').value === 'monthly') $('f-cycle').value = 'none'; });
   $('add-form').addEventListener('submit', addItem);
   $('edit-cancel').addEventListener('click', stopEditing);
