@@ -152,7 +152,8 @@ async function addItem(ev) {
     cycle: $('f-cycle').value,
     lead_days: parseInt($('f-lead').value, 10) || 7,
     cal: state.cal,
-    expires_on: msToIso(r.ms)
+    expires_on: msToIso(r.ms),
+    notes: $('f-notes').value.trim() || null
   };
   const editingId = state.editingId;
   const q = editingId
@@ -160,7 +161,10 @@ async function addItem(ev) {
     : sb.from('items').insert(row).select().single();
   const { data, error } = await q;
   $('add-btn').disabled = false;
-  if (error) return formError('تعذّر الحفظ: ' + error.message);
+  if (error) {
+    if (/notes/i.test(error.message)) return formError('حقل الملاحظات غير مفعّل في قاعدة البيانات بعد. شغّل أمر SQL الخاص بالملاحظات في Supabase ثم أعد المحاولة.');
+    return formError('تعذّر الحفظ: ' + error.message);
+  }
   if (editingId) {
     state.items = state.items.map((x) => (x.id === editingId ? data : x));
     stopEditing();
@@ -174,6 +178,7 @@ async function addItem(ev) {
 
 function clearForm() {
   $('f-name').value = '';
+  $('f-notes').value = '';
   ['f-d', 'f-m', 'f-y'].forEach((id) => { $(id).value = ''; });
   formError('');
   updatePreview();
@@ -190,6 +195,7 @@ function startEditing(id) {
   fillDateSelects();
   setDateFromMs(isoToMs(it.expires_on));
   $('f-name').value = it.name;
+  $('f-notes').value = it.notes || '';
   $('f-type').value = it.type;
   $('f-cycle').value = it.cycle;
   const lead = String(it.lead_days);
@@ -266,7 +272,7 @@ function render() {
     if (state.filter === 'subs' && x.type !== 'sub') return false;
     if (state.filter === 'docs' && x.type === 'sub') return false;
     if (state.filter === 'attention' && x.st === 'ok') return false;
-    if (q && !x.name.toLowerCase().includes(q) && !typeLabel(x.type).includes(q)) return false;
+    if (q && !x.name.toLowerCase().includes(q) && !typeLabel(x.type).includes(q) && !(x.notes || '').toLowerCase().includes(q)) return false;
     return true;
   });
 
@@ -282,6 +288,7 @@ function render() {
   <div class="info">
     <h3 dir="auto">${name}</h3>
     <span class="muted">${typeLabel(x.type)} · ${CYCLE_LABELS[x.cycle] || ''} · تنبيه قبل ${dayWord(x.lead_days, true)}</span>
+    ${x.notes ? `<p class="note" dir="auto">${esc(x.notes)}</p>` : ''}
   </div>
   <div class="dates">
     <div><span class="lbl">ميلادي</span><span class="v${x.cal === 'g' ? ' primary' : ''}">${fmtG(x.ms)}</span></div>

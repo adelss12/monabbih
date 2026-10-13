@@ -10,6 +10,7 @@ create table if not exists public.items (
   lead_days   int  not null default 7 check (lead_days between 0 and 365),
   cal         text not null default 'g' check (cal in ('g','h')),
   expires_on  date not null,
+  notes       text check (notes is null or char_length(notes) <= 500),
   created_at  timestamptz not null default now()
 );
 
@@ -32,3 +33,6 @@ create policy "items_select_own" on public.items for select using (auth.uid() = 
 create policy "items_insert_own" on public.items for insert with check (auth.uid() = user_id);
 create policy "items_update_own" on public.items for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "items_delete_own" on public.items for delete using (auth.uid() = user_id);
+
+-- ترقية: إضافة حقل الملاحظات لجدول موجود مسبقًا
+alter table public.items add column if not exists notes text check (notes is null or char_length(notes) <= 500);
