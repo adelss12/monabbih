@@ -127,7 +127,7 @@ legend { font-size: 14px; font-weight: 600; padding: 0; margin-bottom: 8px; }
 .dates .lbl { font-size: 12px; color: var(--muted); min-width: 44px; }
 .dates .v { font-weight: 500; color: #3F4A55; }
 .dates .v.primary { font-weight: 700; color: var(--ink); }
-.state { flex: 0 0 120px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.state { flex: 0 0 auto; min-width: 120px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .state .remain { font-size: 14px; font-weight: 600; }
 .badge { display: inline-flex; align-items: center; min-height: 26px; padding: 0 10px; border-radius: 999px; font-size: 13px; font-weight: 700; }
 .badge.expired { background: var(--exp-bg); color: var(--exp); }
@@ -189,3 +189,6 @@ legend { font-size: 14px; font-weight: 600; padding: 0; margin-bottom: 8px; }
 .btn-danger { min-height: 46px; border: 0; border-radius: 12px; background: var(--exp); color: #fff; font-weight: 700; padding: 0 20px; }
 .btn-danger:hover { background: #7E150C; }
 @media (prefers-reduced-motion: reduce) { .app-dialog[open] { animation: none; } }
+
+.state .remain-days { font-size: 12px; color: var(--muted); margin-top: -4px; }
+.state .remain { white-space: nowrap; }

@@ -94,7 +94,7 @@ for (const [userId, list] of byUser) {
 
   list.sort((a, b) => a.r - b.r);
   const subject = list.length === 1
-    ? `منبّه: ${list[0].name} — ${remainText(list[0].r)}`
+    ? `منبّه: ${list[0].name} — ${remainText(list[0].r, list[0].ms, today)}`
     : `منبّه: ${list.length} عناصر تحتاج انتباهك`;
 
   const rows = list.map((x) => {
@@ -110,7 +110,7 @@ for (const [userId, list] of byUser) {
   </td>
   <td style="padding:14px 12px;border-bottom:1px solid #E3DED3;font-size:14px">
     <span style="display:inline-block;background:${bg};color:${fg};border-radius:999px;padding:2px 10px;font-weight:700;font-size:13px">${label}</span>
-    <div style="font-weight:600;margin-top:4px">${remainText(x.r)}</div>
+    <div style="font-weight:600;margin-top:4px">${remainText(x.r, x.ms, today)}</div>
   </td>
 </tr>`;
   }).join('');
@@ -126,7 +126,7 @@ for (const [userId, list] of byUser) {
   <p style="margin:20px 0 0;color:#55606B;font-size:12px">وصلك هذا البريد لأنك أضفت هذه العناصر في منبّه مع تنبيه قبل الانتهاء.</p>
 </div></body></html>`;
 
-  const text = list.map((x) => `- ${x.name}: ${remainText(x.r)} | ميلادي ${fmtG(x.ms)} | هجري ${fmtH(x.ms)}`).join('\n');
+  const text = list.map((x) => `- ${x.name}: ${remainText(x.r, x.ms, today)} | ميلادي ${fmtG(x.ms)} | هجري ${fmtH(x.ms)}`).join('\n');
 
   if (useResend) {
     await sendViaResend({ to, subject, html, text });

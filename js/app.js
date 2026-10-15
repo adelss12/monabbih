@@ -458,7 +458,8 @@ function render() {
   </div>
   <div class="state">
     <span class="badge ${x.st}">${BADGE[x.st]}</span>
-    <span class="remain">${remainText(x.r)}</span>
+    <span class="remain">${remainText(x.r, x.ms, t)}</span>
+    ${Math.abs(x.r) >= 30 ? `<span class="remain-days">${dayWord(Math.abs(x.r))}</span>` : ''}
   </div>
   <div class="actions">
     ${x.cycle !== 'none' ? `<button type="button" class="renew" data-renew="${x.id}" aria-label="تجديد ${name}">تجديد</button>` : ''}

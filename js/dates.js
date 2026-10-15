@@ -132,8 +132,53 @@ export function statusOf(expMs, leadDays, today) {
   return { r, st };
 }
 
-export function remainText(r) {
-  if (r < 0) return `منتهٍ منذ ${dayWord(-r, true)}`;
+function yearWord(n, gen) {
+  if (n === 1) return 'سنة';
+  if (n === 2) return gen ? 'سنتين' : 'سنتان';
+  if (n >= 3 && n <= 10) return `${n} سنوات`;
+  return `${n} سنة`;
+}
+
+function monthWord(n, gen) {
+  if (n === 1) return 'شهر';
+  if (n === 2) return gen ? 'شهرين' : 'شهران';
+  if (n >= 3 && n <= 10) return `${n} أشهر`;
+  return `${n} شهرًا`;
+}
+
+/** الفرق بالتقويم الميلادي بين تاريخين: {y, m, d} (من الأقدم إلى الأحدث) */
+export function diffYMD(fromMs, toMs) {
+  if (toMs < fromMs) [fromMs, toMs] = [toMs, fromMs];
+  const a = new Date(fromMs);
+  const b = new Date(toMs);
+  let y = b.getUTCFullYear() - a.getUTCFullYear();
+  let m = b.getUTCMonth() - a.getUTCMonth();
+  let d = b.getUTCDate() - a.getUTCDate();
+  if (d < 0) {
+    m -= 1;
+    d += new Date(Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), 0)).getUTCDate(); // أيام الشهر السابق
+  }
+  if (m < 0) { y -= 1; m += 12; }
+  return { y, m, d };
+}
+
+/** «سنة | 4 أشهر | 10 أيام» مع حذف الأجزاء الصفرية */
+export function durationText(fromMs, toMs, gen) {
+  const { y, m, d } = diffYMD(fromMs, toMs);
+  const parts = [];
+  if (y) parts.push(yearWord(y, gen));
+  if (m) parts.push(monthWord(m, gen));
+  if (d) parts.push(dayWord(d, gen));
+  return parts.join(' | ');
+}
+
+/**
+ * نص المتبقي. إن مُرّر تاريخ الانتهاء واليوم: يُعرض بالسنوات والأشهر والأيام،
+ * وإلا بالأيام فقط.
+ */
+export function remainText(r, expMs, today) {
   if (r === 0) return 'ينتهي اليوم';
-  return `متبقٍ ${dayWord(r)}`;
+  const useYMD = expMs != null && today != null && Math.abs(r) >= 30;
+  if (r < 0) return `منتهٍ منذ ${useYMD ? durationText(expMs, today, true) : dayWord(-r, true)}`;
+  return `متبقٍ ${useYMD ? durationText(today, expMs) : dayWord(r)}`;
 }
