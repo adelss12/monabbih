@@ -38,7 +38,10 @@ code { background: #EFEBE2; padding: 1px 6px; border-radius: 6px; direction: ltr
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 20px; border-bottom: 1px solid #DDD7CA; }
-.brand { display: flex; align-items: center; gap: 14px; }
+.brand { display: flex; align-items: center; gap: 14px; flex: 1 1 auto; }
+.home-btn { margin-inline-start: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 56px; min-height: 52px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--accent); text-decoration: none; font-size: 12px; font-weight: 600; flex: 0 0 auto; }
+.home-btn:hover { background: #EEF5F3; }
+.home-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .logo { width: 52px; height: 52px; border-radius: 14px; background: var(--accent); display: flex; align-items: center; justify-content: center; flex: 0 0 52px; }
 .brand h1 { font-size: 30px; font-weight: 700; }
 .brand p { font-size: 14px; }
