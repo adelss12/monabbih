@@ -27,9 +27,7 @@ jobs:
           status=$(curl --silent --show-error \
             --max-time 30 \
             --get \
-            --url "$SUPABASE_URL/rest/v1/items" \
-            --data-urlencode "select=id" \
-            --data-urlencode "limit=1" \
+            --url "$SUPABASE_URL/rest/v1/rpc/keepalive_ping" \
             --header "apikey: $SUPABASE_ANON_KEY" \
             --output /tmp/supabase-response.json \
             --write-out "%{http_code}")
