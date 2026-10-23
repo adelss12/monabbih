@@ -31,10 +31,16 @@ jobs:
             --data-urlencode "select=id" \
             --data-urlencode "limit=1" \
             --header "apikey: $SUPABASE_ANON_KEY" \
-            --output /dev/null \
+            --output /tmp/supabase-response.json \
             --write-out "%{http_code}")
 
+          
           echo "Supabase HTTP status: $status"
+
+          if [ "$status" != "200" ]; then
+            python3 -c 'import json; p=json.load(open("/tmp/supabase-response.json")); print("Supabase error code:", p.get("code", "unknown")); print("Supabase error message:", p.get("message", p.get("msg", "unknown")))' || echo "Could not parse error response."
+          fi
+
           test "$status" = "200"
 
           echo "Supabase read request completed."
